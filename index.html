@@ -20,8 +20,18 @@ button.on{border-color:var(--sel);background:#2f7dd122}
 button:focus-visible{outline:3px solid var(--sel)}
 #log{position:absolute;right:8px;top:calc(env(safe-area-inset-top,0px) + 52px);max-width:230px;font-size:13px;pointer-events:none}
 #log div{background:var(--panel);border-radius:8px;padding:4px 8px;margin-bottom:4px}
-#dia{display:none;position:absolute;left:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 78px);width:min(330px,calc(100% - 16px));background:var(--panel);border-radius:12px;padding:10px;box-shadow:0 2px 0 #0003;font-size:13px}
-#dia.open{display:block;max-height:60vh;overflow:auto}
+#dia,#stp,#tep,#cmp{display:none;position:absolute;left:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 78px);width:min(330px,calc(100% - 16px));background:var(--panel);border-radius:12px;padding:10px;box-shadow:0 2px 0 #0003;font-size:13px}
+#dia.open,#stp.open,#tep.open,#cmp.open{display:block;max-height:60vh;overflow:auto}
+#sn{flex:1;min-width:0;font:inherit;font-weight:700;padding:6px 8px;border-radius:8px;border:2px solid #0003;background:#0002;color:var(--ink)}
+#stp small,#tep small{line-height:1.6}
+#tep input[type=range]{flex:1;min-width:0}
+#cab{display:none;position:absolute;left:8px;right:8px;margin:auto;max-width:340px;bottom:calc(env(safe-area-inset-bottom,0px) + 74px);background:var(--panel);border-radius:12px;padding:8px 10px;box-shadow:0 2px 0 #0003;font-size:13px;line-height:1.5}
+#cab .row{margin:6px 0 0}
+#cabc{background:#101418;color:#ffcf5a;border-radius:8px;padding:6px 8px;margin-bottom:6px;font-weight:700;min-height:2.8em}
+#cabs{font-size:12px;opacity:.9;margin-bottom:4px}
+#tt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+#vn{flex:1;min-width:0;font:inherit;font-weight:700;padding:6px 8px;border-radius:8px;border:2px solid #0003;background:#0002;color:var(--ink)}
+#tpv{position:static;width:100%;height:64px;border-radius:8px;background:#0001;display:block;margin:6px 0}
 #tabs{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}
 .row{display:flex;align-items:center;gap:8px;margin:4px 0}.row span{width:70px}.row b{min-width:56px;text-align:center}
 #dc{position:static;width:100%;height:130px;margin-top:6px;border-radius:8px;background:#0001;display:block}
@@ -31,14 +41,28 @@ button:focus-visible{outline:3px solid var(--sel)}
 <div id="hud"><div class="chip" id="m"></div><div class="chip" id="p"></div><div class="chip" id="d"></div><div class="chip" id="goal"></div></div>
 <div id="log"></div>
 <div id="dia"><div id="tabs"></div><div id="ctl"></div><canvas id="dc" width="300" height="130"></canvas></div>
+<div id="stp"></div>
+<div id="cmp"></div>
+<div id="cab"><div id="cabc">車内放送</div><div id="cabs"></div><div id="cabi"></div><div class="row"><button data-c="prev" aria-label="前の列車">◀</button><button data-c="next" aria-label="次の列車">▶</button><button data-c="mode" id="cabm">前面展望へ</button><button data-c="snd" id="cabsnd">放送音:オン</button><button data-c="x">終了</button></div></div>
+<div id="tep"></div>
 <div id="bar"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const GW=26,GH=16,D=[[1,0],[-1,0],[0,1],[0,-1]];
-const VEH=[{n:'一般形',cars:3,cap:120,spd:2.5,up:150},{n:'通勤形',cars:5,cap:200,spd:2.2,up:260},{n:'高速形',cars:3,cap:100,spd:3.4,up:300}];
-const T={rail:{n:'線路',c:50},st:{n:'駅',c:600},br:{n:'橋',c:400},dbl:{n:'複線',c:80},pass:{n:'通過',c:0},h:{n:'住宅',c:300},o:{n:'ビル',c:700},f:{n:'工場',c:900},river:{n:'川',c:100},del:{n:'撤去',c:0},view:{n:'視点',c:0},dia:{n:'ダイヤ',c:0}};
+const dia=document.getElementById('dia'),stp=document.getElementById('stp'),tep=document.getElementById('tep'),cmp=document.getElementById('cmp');
+const CT={M:{n:'動力車',cap:40,pw:3,w:1.2,up:60},T:{n:'付随車',cap:45,pw:0,w:1,up:40},G:{n:'グリーン車',cap:20,pw:0,w:1.1,up:55}};
+const PAL=[0x2f7dd1,0x2a9d5c,0xc78a00,0xd9482b,0x8e5bd6,0x20a4a4,0xe8e8ee,0x4a4f5e];
+const SH={box:{n:'角形',sp:1,cp:1,up:1},bullet:{n:'流線形',sp:1.08,cp:.95,up:1.1},dd:{n:'二階建て',sp:.92,cp:1.3,up:1.1},arc:{n:'丸屋根',sp:1.03,cp:1,up:1}};
+const mk=(n,list,col,o={})=>{let cap=0,pw=0,w=0,up=0,g=0;const sh=SH[o.shape||'box'],pf={sp:1,cp:1,fr:1,...(o.perf||{})};
+  for(const t of list){const c=CT[t];cap+=c.cap;pw+=c.pw;w+=c.w;up+=c.up;if(t==='G')g++}
+  return{n,list,col,acc:o.acc??0xe8e8ee,shape:o.shape||'box',stripe:o.stripe||'none',logo:o.logo||'',lpos:o.lpos||'head',perf:pf,
+    cap:Math.round(cap*sh.cp*pf.cp),up:Math.round(up*sh.up*(.2+.5*pf.sp+.3*pf.cp)),cars:list.length,fm:(1+.8*g/list.length)*pf.fr,
+    spd:pw?Math.min(4.2,+((1.3+pw/w*1.2)*sh.sp*pf.sp).toFixed(1)):.8}};
+const VEH=[mk('一般形',['M','T','T'],0x2f7dd1,{stripe:'band'}),mk('通勤形',['M','T','T','T','T'],0x2a9d5c,{stripe:'wide',shape:'arc'}),mk('高速形',['M','M','G'],0xc78a00,{shape:'bullet',stripe:'two',logo:'★'})];
+const vehs=()=>VEH.concat(custom);
+const T={rail:{n:'線路',c:50},st:{n:'駅',c:600},edit:{n:'駅編集',c:0},route:{n:'経路',c:0},tedit:{n:'車両編集',c:0},cam:{n:'列車追跡',c:0},br:{n:'橋',c:400},dbl:{n:'複線',c:80},pass:{n:'通過',c:0},h:{n:'住宅',c:300},o:{n:'ビル',c:700},f:{n:'工場',c:900},river:{n:'川',c:100},del:{n:'撤去',c:0},view:{n:'視点',c:0},dia:{n:'ダイヤ',c:0}};
 const grid=[...Array(GH)].map(()=>Array(GW).fill(null)),objs=[...Array(GH)].map(()=>Array(GW).fill(null));
-let money=6000,day=0,tool='rail',trains=[],lines=[],sched={},selLine=0,logs=[],hover=[-1,-1];
+let money=6000,day=0,tool='rail',trains=[],lines=[],sched={},selLine=0,routes=[],camMode='free',camKey=null,custom=[],selVeh=0,selSt=null,stN=0,logs=[],hover=[-1,-1];
 const put=(x,y,t)=>grid[y][x]={t,lv:1};
 const water=[...Array(GH)].map(()=>Array(GW).fill(false));
 for(let y=0;y<GH;y++){const cx=Math.round(11.5+2*Math.sin(y/2.5));water[y][cx]=water[y][cx+1]=true}
@@ -60,12 +84,14 @@ const tex=new THREE.CanvasTexture(gc);tex.magFilter=THREE.NearestFilter;
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(GW,GH),new THREE.MeshLambertMaterial({map:tex}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;S.add(ground);
 const hb=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,.1,1)),new THREE.LineBasicMaterial({color:0x2f7dd1}));hb.position.y=.06;S.add(hb);
 const cb=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(7,.05,7)),new THREE.LineBasicMaterial({color:0xffffff}));cb.position.y=.05;S.add(cb);
+const rline=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xff9f1c,depthTest:false}));rline.renderOrder=4;rline.frustumCulled=false;rline.visible=false;S.add(rline);
 // --- logic helpers
 const inb=(x,y)=>x>=0&&y>=0&&x<GW&&y<GH;
 const isR=(x,y)=>inb(x,y)&&grid[y][x]&&(grid[y][x].t==='rail'||grid[y][x].t==='st'||grid[y][x].t==='br');
 const pop=c=>c.t==='h'?c.lv*10:0,job=c=>c.t==='o'?c.lv*14:c.t==='f'?c.lv*18:0;
-const near=(sx,sy,fn)=>{let s=0;for(let y=sy-3;y<=sy+3;y++)for(let x=sx-3;x<=sx+3;x++)if(inb(x,y)&&grid[y][x])s+=fn(grid[y][x]);return s};
-const covered=(x,y)=>{for(let j=y-3;j<=y+3;j++)for(let i=x-3;i<=x+3;i++)if(inb(i,j)&&grid[j][i]&&grid[j][i].t==='st')return true;return false};
+const rad=c=>3+(c?.g||0);
+const near=(sx,sy,fn,r=3)=>{let s=0;for(let y=sy-r;y<=sy+r;y++)for(let x=sx-r;x<=sx+r;x++)if(inb(x,y)&&grid[y][x])s+=fn(grid[y][x]);return s};
+const covered=(x,y)=>{for(let j=y-5;j<=y+5;j++)for(let i=x-5;i<=x+5;i++){const c=inb(i,j)&&grid[j][i];if(c&&c.t==='st'&&Math.max(Math.abs(i-x),Math.abs(j-y))<=rad(c))return true}return false};
 const W3=(x,y)=>[x-GW/2+.5,y-GH/2+.5];
 function say(s){logs.unshift(s);logs=logs.slice(0,4);document.getElementById('log').innerHTML=logs.map(l=>'<div>'+l+'</div>').join('')}
 // --- build meshes
@@ -74,15 +100,15 @@ function build(x,y){
   const c=grid[y][x];if(!c)return;
   const G=new THREE.Group(),[wx,wz]=W3(x,y);G.position.set(wx,0,wz);let top=.3;const rl=c.t==='rail'||c.t==='st'||c.t==='br';
   if(rl){
-    const Y=c.t==='br'?.3:0,bw=c.dbl?.76:.4,ln=c.dbl?[-.19,.19]:[0];
+    const Y=c.t==='br'?.3:0,NT=c.t==='st'?(c.tr||(c.dbl?2:1)):(c.dbl?2:1),bw=[0,.4,.76,.88,.94][NT],ln=[0,[0],[-.19,.19],[-.27,0,.27],[-.3,-.1,.1,.3]][NT],gq=NT===4?.06:.09;
     if(Y){G.add(bx(.95,.08,.95,0x9a8b78,0,.26,0));for(const a of[-.4,.4])for(const b of[-.4,.4])G.add(bx(.1,.3,.1,0x7a7a84,a,.12,b))}
     G.add(bx(bw,.06,bw,0x6e6256,0,.03+Y,0));
     for(const[dx,dy]of D)if(isR(x+dx,y+dy)){const hz=dx!==0;G.add(bx(hz?.5:bw,.06,hz?bw:.5,0x6e6256,dx*.25,.03+Y,dy*.25));
-      for(const l of ln)for(const q of[-.09,.09]){const o=l+q;G.add(bx(hz?.5:.04,.04,hz?.04:.5,0xcfd3d8,dx*.25+(hz?0:o),.08+Y,dy*.25+(hz?o:0)))}}
+      for(const l of ln)for(const q of[-gq,gq]){const o=l+q;G.add(bx(hz?.5:.04,.04,hz?.04:.5,0xcfd3d8,dx*.25+(hz?0:o),.08+Y,dy*.25+(hz?o:0)))}}
     if(c.t==='st'){const hz=isR(x+1,y)||isR(x-1,y);
-      const pw=c.dbl?.12:.22,po=c.dbl?.44:.36;for(const s of[-1,1])G.add(bx(hz?.95:pw,.12,hz?pw:.95,0xfffaf0,hz?0:s*po,.06,hz?s*po:0));
+      const pw=NT>=3?.08:c.dbl?.12:.22,po=NT>=3?.46:c.dbl?.44:.36;for(const s of[-1,1])G.add(bx(hz?.95:pw,.12,hz?pw:.95,0xfffaf0,hz?0:s*po,.06,hz?s*po:0));
       G.add(bx(.95,.05,.95,c.pass?0x2f7dd1:0xd9482b,0,.55,0));
-      for(const a of[-.42,.42])for(const b of[-.42,.42])G.add(bx(.05,.5,.05,0xfffaf0,a,.28,b))}
+      for(const a of[-.42,.42])for(const b of[-.42,.42])G.add(bx(.05,.5,.05,0xfffaf0,a,.28,b));if(!c.name)c.name=SN(stN++);{const lb=label(c.name+(c.nl>1?' ⇄':''));lb.visible=camMode!=='front';G.userData.lb=lb;G.add(lb)};if(c.g){const hh=.1+.12*c.g;G.add(bx(.4,hh,.4,0xe8dcc8,0,.58+hh/2,0))}}
   }else if(c.t==='h'){const h=.25+.12*c.lv;G.add(bx(.6,h,.6,[0xe8c9a0,0xf0b98d,0xe79b86,0xd7826f][c.lv-1],0,h/2,0));
     const r=new THREE.Mesh(new THREE.ConeGeometry(.52,.3,4),M(0xc0503a));r.rotation.y=Math.PI/4;r.position.y=h+.15;r.castShadow=true;G.add(r);top=h+.4;
   }else if(c.t==='o'){const h=.5+.4*c.lv;G.add(bx(.6,h,.6,0x8fb0d0,0,h/2,0));G.add(bx(.62,h*.8,.4,0xdff0ff,0,h/2,0));top=h+.25;
@@ -101,76 +127,127 @@ function refresh(){
 function bfs(sx,sy){const d=new Map(),p=new Map(),q=[[sx,sy]];d.set(sx+','+sy,0);p.set(sx+','+sy,null);
   while(q.length){const[x,y]=q.shift();for(const[dx,dy]of D){const nx=x+dx,ny=y+dy,k=nx+','+ny;if(isR(nx,ny)&&!d.has(k)){d.set(k,d.get(x+','+y)+1);p.set(k,x+','+y);q.push([nx,ny])}}}
   return{d,p}}
-function rebuild(){
-  trains.forEach(t=>S.remove(t.g));trains=[];lines=[];const seen=new Set(),cols=[0xd9482b,0x2f7dd1,0x2a9d5c,0xc78a00];
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-    if(!isR(x,y)||seen.has(x+','+y))continue;
-    const comp=bfs(x,y);comp.d.forEach((v,k)=>seen.add(k));
-    const sts=[...comp.d.keys()].filter(k=>{const[a,b]=k.split(',').map(Number);return grid[b][a].t==='st'});
-    if(sts.length<2)continue;
-    const[ax,ay]=sts[0].split(',').map(Number),A=bfs(ax,ay);let far=sts[0];
-    sts.forEach(k=>{if(A.d.get(k)>A.d.get(far))far=k});
-    const path=[];let cur=far;while(cur){path.unshift(cur.split(',').map(Number));cur=A.p.get(cur)}
-    const cfg=sts.map(k=>sched[k]).find(Boolean)||{n:1,gap:10,dwell:3,ex:0,veh:0};sts.forEach(k=>sched[k]=cfg);
-    const ln={path,cfg,name:'線'+(lines.length+1)};lines.push(ln);
-    const v=VEH[cfg.veh];for(let i=0;i<cfg.n;i++){const g=new THREE.Group(),ex=i>=cfg.n-cfg.ex;
-      for(let j=0;j<v.cars;j++){const c=new THREE.Group();c.add(bx(.3,.22,.56,ex?0xd9482b:0x2f7dd1,0,.22,0));c.add(bx(.31,.07,.4,0xe6f2ff,0,.27,0));g.add(c)}
-      g.visible=false;S.add(g);trains.push({line:ln,ex,cap:v.cap,spd:v.spd*(ex?1.25:1),up:v.up,path,pos:0,dir:1,g,stop:0,blk:0,last:0,on:false,wait:i*cfg.gap,ls:0,h:[],id:trains.length})}
+const deg=(x,y)=>D.filter(([dx,dy])=>isR(x+dx,y+dy)).length;
+function routePath(r){
+  if(r.stops.length<2)return null;let path=[];
+  for(let i=0;i<r.stops.length-1;i++){
+    const a=r.stops[i],b=r.stops[i+1],[ax,ay]=a.split(',').map(Number),[bx,by]=b.split(',').map(Number);
+    if(!isR(ax,ay)||!isR(bx,by)||grid[ay][ax].t!=='st'||grid[by][bx].t!=='st')return null;
+    const A=bfs(ax,ay);if(!A.d.has(b))return null;
+    const seg=[];let cur=b;while(cur){seg.unshift(cur.split(',').map(Number));cur=A.p.get(cur)}
+    path=path.concat(i?seg.slice(1):seg);
   }
+  return new Set(path.map(p=>p+'')).size===path.length?path:null;
+}
+function rebuild(){
+  annSeen.clear();trains.forEach(t=>S.remove(t.g));trains=[];lines=[];const cid=new Map(),comps=[];
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){if(!isR(x,y)||cid.has(x+','+y))continue;const comp=bfs(x,y);comp.d.forEach((v,k)=>cid.set(k,comps.length));comps.push(comp)}
+  const addLine=(path,cfg,name,ci,route)=>{
+    const ln={path,cfg,name,route};lines.push(ln);const v=vehs()[cfg.veh]||VEH[0];
+    for(let i=0;i<cfg.n;i++){const g=new THREE.Group(),ex=i>=cfg.n-cfg.ex;
+      for(let j=0;j<v.list.length;j++)g.add(mkCar(v,j,ex))
+      g.visible=false;S.add(g);trains.push({line:ln,idx:i,comp:ci,ex,fm:v.fm,el:Math.pow(v.perf.fr,-1.3),len:v.cars,cap:v.cap,spd:v.spd*(ex?1.25:1),up:v.up,path,pos:0,dir:1,g,stop:0,blk:0,last:0,on:false,wait:i*cfg.gap,ls:0,h:[],id:trains.length})}
+  };
+  if(routes.length){for(const r of routes){const p=routePath(r);r.ok=!!p;if(p)addLine(p,r.cfg,r.name,cid.get(p[0]+''),r)}}
+  else comps.forEach((comp,ci)=>{
+    const sts=[...comp.d.keys()].filter(k=>{const[a,b]=k.split(',').map(Number);return grid[b][a].t==='st'});
+    if(sts.length<2)return;
+    const pathOf=(a,b)=>{const A=bfs(...a.split(',').map(Number)),p=[];let cur=b;while(cur){p.unshift(cur.split(',').map(Number));cur=A.p.get(cur)}return p};
+    const lv=sts.filter(k=>{const[a,b]=k.split(',').map(Number);return deg(a,b)<=1});let paths=[];
+    if(lv.length>=2){
+      const cov=new Set(),ek=(p,q)=>[p+'',q+''].sort().join('-'),cand=[];
+      for(let i=0;i<lv.length;i++)for(let j=i+1;j<lv.length;j++)cand.push(pathOf(lv[i],lv[j]));
+      for(let r=0;r<4;r++){let best=null,bn=0;
+        for(const p of cand){let n=0;for(let i=0;i<p.length-1;i++)if(!cov.has(ek(p[i],p[i+1])))n++;if(n>bn||(n===bn&&n>0&&p.length>best.length)){best=p;bn=n}}
+        if(!best)break;paths.push(best);for(let i=0;i<best.length-1;i++)cov.add(ek(best[i],best[i+1]))}
+    }
+    if(!paths.length){const A=bfs(...sts[0].split(',').map(Number));let far=sts[0];sts.forEach(k=>{if(A.d.get(k)>A.d.get(far))far=k});paths=[pathOf(sts[0],far)]}
+    for(const path of paths){const key=path[0]+'|'+path[path.length-1];addLine(path,sched[key]||(sched[key]={n:1,gap:10,dwell:3,ex:0,veh:0}),'路線'+(lines.length+1),ci)}
+  });
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const c=grid[y][x];if(c&&c.t==='st'){c.ln=[];c.nl=0}}
+  for(const ln of lines)for(const p of ln.path){const c=grid[p[1]][p[0]];if(c&&c.t==='st'){c.ln.push(ln.name);c.nl++}}
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const c=grid[y][x];if(c&&c.t==='st'&&c.pn!==c.nl){c.pn=c.nl;build(x,y)}}
   renderCtl();
 }
 function placeTrain(tr){
   const L=tr.path.length-1;
   tr.g.children.forEach((car,i)=>{
     const p=Math.max(0,Math.min(L,tr.pos-tr.dir*i*.62)),i0=Math.min(Math.floor(p),L-1),f=p-i0,a=tr.path[i0],b=tr.path[i0+1];
-    const[wx,wz]=W3(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f);const ya=grid[a[1]][a[0]]?.t==='br'?.3:0,yb=grid[b[1]][b[0]]?.t==='br'?.3:0;const hx=(b[0]-a[0])*tr.dir,hz=(b[1]-a[1])*tr.dir,la=grid[a[1]][a[0]]?.dbl?.19:0,lb=grid[b[1]][b[0]]?.dbl?.19:0,lt=la+(lb-la)*f;car.position.set(wx+lt*hz,ya+(yb-ya)*f,wz-lt*hx);
+    const[wx,wz]=W3(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f);const ya=grid[a[1]][a[0]]?.t==='br'?.3:0,yb=grid[b[1]][b[0]]?.t==='br'?.3:0;const hx=(b[0]-a[0])*tr.dir,hz=(b[1]-a[1])*tr.dir,la=lane(tr,a),lb=lane(tr,b),lt=la+(lb-la)*f;car.position.set(wx+lt*hz,ya+(yb-ya)*f,wz-lt*hx);
     car.rotation.y=Math.atan2((b[0]-a[0])*tr.dir,(b[1]-a[1])*tr.dir)});
 }
 const single=(tr,i)=>i>=0&&i<tr.path.length&&!grid[tr.path[i][1]][tr.path[i][0]]?.dbl;
+const hv=(tr,i)=>{const L=tr.path.length-1,a=tr.path[i],b=tr.path[Math.max(0,Math.min(L,i+tr.dir))];return[b[0]-a[0],b[1]-a[1]]};
+const dot=(u,v)=>u[0]*v[0]+u[1]*v[1];
+const opp=(tr,ci,ni,o)=>dot([tr.path[ni][0]-tr.path[ci][0],tr.path[ni][1]-tr.path[ci][1]],hv(o,Math.round(o.pos)))<0;
 function regBlock(tr,ci,ni){
   if(!single(tr,ni))return false;
   let a=ni,b=ni;while(single(tr,a-1))a--;while(single(tr,b+1))b++;
   if(ci>=a&&ci<=b)return false;
-  const term=a===0||b===tr.path.length-1;
-  return trains.some(o=>{const r=Math.round(o.pos);return o!==tr&&o.on&&o.line===tr.line&&r>=a&&r<=b&&(term||o.dir!==tr.dir)});
+  const term=a===0||b===tr.path.length-1,set=new Set(tr.path.slice(a,b+1).map(p=>p[0]+','+p[1])),P=tr.path,j=ci<0?1:ci,h=ci<0?[P[1][0]-P[0][0],P[1][1]-P[0][1]]:[P[ni][0]-P[j][0],P[ni][1]-P[j][1]];
+  return trains.some(o=>{if(o===tr||!o.on||o.comp!==tr.comp)return false;const r=Math.round(o.pos),q=o.path[r];return set.has(q[0]+','+q[1])&&(term||dot(h,hv(o,r))<=0)});
 }
-const blocker=(tr,ni)=>{const c=grid[tr.path[ni][1]][tr.path[ni][0]];for(const o of trains)if(o!==tr&&o.on&&o.line===tr.line&&Math.round(o.pos)===ni){
-  if(o.dir===tr.dir){if(c?.t==='st'&&c.dbl&&o.stop>0)continue;return o}
-  if(!c?.dbl)return o}return null};
+const blocker=(tr,ni,ci)=>{const p=tr.path[ni],c=grid[p[1]][p[0]],T=c?.t==='st'?(c.tr||(c.dbl?2:1)):(c?.dbl?2:1),h=ni===ci?hv(tr,ni):[p[0]-tr.path[ci][0],p[1]-tr.path[ci][1]];let sh=0;
+  for(const o of trains)if(o!==tr&&o.on&&o.comp===tr.comp){const r=Math.round(o.pos),q=o.path[r];if(q[0]!==p[0]||q[1]!==p[1])continue;
+    const d=dot(h,hv(o,r));
+    if(d>0){if(T>=3&&o.stop>0&&++sh<2)continue;return o}
+    if(d<0&&T>=2)continue;
+    return o}
+  return null};
 function arrive(tr,k){
-  const h=tr.path[k],f=tr.path[tr.last],pf=near(f[0],f[1],pop),jf=near(f[0],f[1],job),ph=near(h[0],h[1],pop),jh=near(h[0],h[1],job);
-  const r=Math.min(tr.cap,Math.min(pf,jh)+Math.min(jf,ph)+Math.round((pf+jf+ph+jh)/12)),inc=Math.round(r*Math.abs(k-tr.last)*(tr.ex?3.9:3));
+  const h=tr.path[k],f=tr.path[tr.last],pf=near(f[0],f[1],pop,sr(f)),jf=near(f[0],f[1],job,sr(f)),ph=near(h[0],h[1],pop,sr(h)),jh=near(h[0],h[1],job,sr(h));
+  const xr=((grid[h[1]][h[0]]?.nl||1)-1)*Math.round((ph+jh)/6),r=Math.min(tr.cap,Math.round((Math.min(pf,jh)+Math.min(jf,ph)+Math.round((pf+jf+ph+jh)/12)+xr)*tr.el)),inc=Math.round(r*Math.abs(k-tr.last)*(tr.ex?3.9:3)*tr.fm);
   if(inc>0){money+=inc;say(tr.line.name+(tr.ex?'急行 ':' ')+r+'人 +¥'+inc)}
-  tr.last=k;tr.stop=tr.line.cfg.dwell;
+  for(const q of[f,h]){const z=grid[q[1]][q[0]];if(z&&z.t==='st'){z.ride=(z.ride||0)+r/2;z.rev=(z.rev||0)+inc/2}}
+  {const zh=grid[h[1]][h[0]];if(zh)zh.xf=(zh.xf||0)+Math.min(xr,r)}
+  tr.last=k;tr.arr=(tr.arr||0)+1;tr.stop=tr.line.cfg.dwell+Math.max(0,tr.len-3)*.4;
   if(k===0){tr.on=false;tr.g.visible=false;tr.wait=tr.line.cfg.gap;tr.h.push([tm,null]);return}
   if(k===tr.path.length-1)tr.dir=-1;
   const c=grid[h[1]][h[0]];
-  if(!tr.ex&&c.dbl&&c.t==='st'&&k>0&&k<tr.path.length-1)
+  if(!tr.ex&&c.t==='st'&&(c.tr||0)>=3&&k>0&&k<tr.path.length-1)
     for(const o of trains)if(o.ex&&o.on&&o.line===tr.line&&o.dir===tr.dir){const d=(tr.pos-o.pos)*tr.dir;if(d>0&&d<12){tr.stop=Math.max(tr.stop,Math.min(18,d/o.spd+2));say('待避:急行の通過待ち')}}
 }
 function step(tr,dt){
   const L=tr.path.length-1,np=tr.pos+tr.dir*tr.spd*dt,ci=Math.round(tr.pos),ni=Math.round(np);
-  if(ni!==ci&&ni>=0&&ni<=L){if(regBlock(tr,ci,ni))return;const bl=blocker(tr,ni);
-    if(bl){tr.blk+=dt;if(bl.dir!==tr.dir&&tr.blk>5&&tr.id<bl.id){tr.dir*=-1;tr.blk=0;money-=200;say('正面で止まり折返し -¥200')}return}}
+  if(ni!==ci&&ni>=0&&ni<=L){if(regBlock(tr,ci,ni))return;const bl=blocker(tr,ni,ci);
+    if(bl){tr.blk+=dt;const op=opp(tr,ci,ni,bl),at=t=>{const r=Math.round(t.pos);return r===0||r===t.path.length-1};
+      if((op?tr.blk>5:bl.blk>3&&tr.blk>8)&&!at(tr)&&(at(bl)||tr.id<bl.id)){tr.dir*=-1;tr.blk=0;money-=200;say('行き違えず折返し -¥200')}return}}
   tr.blk=0;
   const k=tr.dir>0?Math.min(Math.floor(np),L):Math.max(Math.ceil(np),0),crossed=tr.dir>0?k>Math.floor(tr.pos):k<Math.ceil(tr.pos);
   if(crossed&&(k===0||k===L||((c)=>c?.t==='st'&&!(tr.ex&&c.pass))(grid[tr.path[k][1]][tr.path[k][0]]))){tr.pos=k;arrive(tr,k)}
   else tr.pos=clamp(np,0,L);
 }
+const ui=()=>routes.length?routes:lines,cur=()=>ui()[selLine];
+const nm=k=>{const[x,y]=k.split(',').map(Number),c=grid[y]?.[x];return c?.t==='st'?c.name:'(撤去済)'};
+function showRoute(p){if(p&&p.length>1){rline.geometry.setFromPoints(p.map(q=>{const[wx,wz]=W3(q[0],q[1]);return new THREE.Vector3(wx,.6,wz)}));rline.visible=true}else rline.visible=false}
 function renderCtl(){
-  const tabs=document.getElementById('tabs'),ctl=document.getElementById('ctl');
-  if(selLine>=lines.length)selLine=0;const ln=lines[selLine];
-  tabs.innerHTML=lines.map((l,i)=>`<button data-i="${i}" class="${i===selLine?'on':''}">${l.name}</button>`).join('')||'駅を2つ以上つなぐと路線ができます';
-  if(!ln){ctl.innerHTML='';return}
-  const c=ln.cfg,v=VEH[c.veh],val={n:c.n+'本',ex:c.ex+'本',gap:c.gap+'秒',dwell:c.dwell+'秒',veh:v.n};
-  ctl.innerHTML=[['n','運行本数'],['ex','うち急行'],['veh','車両'],['gap','運転間隔'],['dwell','停車時間']].map(([k,lb])=>`<div class="row"><span>${lb}</span><button data-k="${k}" data-d="-1">−</button><b>${val[k]}</b><button data-k="${k}" data-d="1">+</button></div>`).join('')+`<div class="row"><small>${v.n}: ${v.cars}両 定員${v.cap} 速度${v.spd} 維持費¥${v.up}/月</small></div>`;
+  const tabs=document.getElementById('tabs'),ctl=document.getElementById('ctl'),U=ui();
+  if(selLine>=U.length)selLine=0;const ln=U[selLine];
+  tabs.innerHTML=U.map((l,i)=>`<button data-i="${i}" class="${i===selLine?'on':''}">${l.name}</button>`).join('')+(routes.length?'<button data-a="new">＋路線</button>':'')||`駅 ${grid.flat().filter(c=>c?.t==='st').length}か所。線路でつながった駅が2か所以上あると路線ができます(上下左右でつなぐ。斜めは不可。川は橋が必要)`;
+  let h=routes.length?'':(lines.length?'<div class="row"><button data-a="manual">路線を自分で設定する</button></div>':'');
+  const line=routes.length?lines.find(l=>l.route===ln):ln;showRoute(line?.path);
+  if(!ln){ctl.innerHTML=h;return}
+  const c=ln.cfg,v=vehs()[c.veh]||VEH[0],val={n:c.n+'本',ex:c.ex+'本',gap:c.gap+'秒',dwell:c.dwell+'秒',veh:v.n};
+  h+=[['n','運行本数'],['ex','うち急行'],['veh','車両'],['gap','運転間隔'],['dwell','停車時間']].map(([k,lb])=>`<div class="row"><span>${lb}</span><button data-k="${k}" data-d="-1">−</button><b>${val[k]}</b><button data-k="${k}" data-d="1">+</button></div>`).join('')+`<div class="row"><small>${v.n}: ${v.cars}両 定員${v.cap} 速度${v.spd} 維持費¥${v.up}/月</small></div>`;
+  if(routes.length)h+=`<div class="row"><small>経由駅(順番どおり):</small></div><div class="row" style="flex-wrap:wrap">${ln.stops.map((k,i)=>`<button data-a="rs" data-i="${i}">${i+1}. ${nm(k)} ×</button>`).join('')||'<small>なし</small>'}</div><div class="row"><small>${ln.ok?'':'⚠ 経路が作れません。駅を2つ以上、線路でつながる順に指定してください。<br>'}「経路」ツールで地図の駅をタップすると、経由駅を追加/外せます。</small></div><div class="row"><button data-a="edit">経路ツール</button><button data-a="rdel">この路線を削除</button><button data-a="auto">自動に戻す</button></div>`;
+  ctl.innerHTML=h;
 }
-document.getElementById('tabs').onclick=e=>{const i=e.target.dataset.i;if(i!==undefined){selLine=+i;renderCtl()}};
-document.getElementById('ctl').onclick=e=>{const k=e.target.dataset.k;if(!k)return;const ln=lines[selLine],r={n:[1,4],ex:[0,4],veh:[0,2],gap:[4,20],dwell:[1,8]}[k];
+function routeAct(a,i){
+  const r=routes[selLine];
+  if(a==='manual'){routes=lines.map(l=>({name:l.name,stops:[l.path[0]+'',l.path[l.path.length-1]+''],cfg:l.cfg}));selLine=0;tool='route';sync()}
+  else if(a==='auto'){routes=[];selLine=0;if(tool==='route'){tool='rail';sync()}}
+  else if(a==='new'){routes.push({name:'路線'+(Math.max(0,...routes.map(q=>+q.name.slice(2)||0))+1),stops:[],cfg:{n:1,gap:10,dwell:3,ex:0,veh:0}});selLine=routes.length-1;tool='route';sync()}
+  else if(a==='rdel'&&r){routes.splice(selLine,1);selLine=0}
+  else if(a==='rs'&&r)r.stops.splice(+i,1);
+  else if(a==='edit'){tool='route';sync()}
+  rebuild();
+}
+document.getElementById('tabs').onclick=e=>{if(e.target.dataset.a==='new'){routeAct('new');return}const i=e.target.dataset.i;if(i!==undefined){selLine=+i;renderCtl()}};
+document.getElementById('ctl').onclick=e=>{if(e.target.dataset.a){routeAct(e.target.dataset.a,e.target.dataset.i);return}const k=e.target.dataset.k;if(!k)return;const ln=cur(),r={n:[1,4],ex:[0,4],veh:[0,vehs().length-1],gap:[4,20],dwell:[1,8]}[k];
   ln.cfg[k]=clamp(ln.cfg[k]+(+e.target.dataset.d),r[0],r[1]);ln.cfg.ex=Math.min(ln.cfg.ex,ln.cfg.n);if(k!=='dwell')rebuild();else renderCtl()};
 function drawDia(){
   const c=document.getElementById('dc'),x=c.getContext('2d'),W=c.width,H=c.height,ink=getComputedStyle(document.documentElement).getPropertyValue('--ink');
-  x.clearRect(0,0,W,H);const ln=lines[selLine];if(!ln)return;
+  x.clearRect(0,0,W,H);const ln=routes.length?lines.find(l=>l.route===cur()):cur();if(!ln)return;
   x.strokeStyle=ink;x.fillStyle=ink;x.lineWidth=1;x.globalAlpha=.25;
   ln.path.forEach((p,i)=>{const sc=grid[p[1]][p[0]];if(sc?.t==='st'){x.setLineDash(sc.pass?[4,4]:[]);const y=6+i/(ln.path.length-1)*(H-12);x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke()}});x.setLineDash([]);
   x.globalAlpha=.7;x.font='11px sans-serif';x.fillText('始発側',3,H-8);x.fillText('終点側 (横軸:60秒)',3,16);x.globalAlpha=1;
@@ -178,13 +255,178 @@ function drawDia(){
   trains.filter(t=>t.line===ln).forEach((t,i)=>{x.strokeStyle=t.ex?'#d9482b':'#2f7dd1';x.lineWidth=2;x.beginPath();let on=false;
     for(const[tt,f]of t.h){if(f===null){on=false;continue}const px=W-(tm-tt)/60*W;if(px<0)continue;const y=6+f*(H-12);on?x.lineTo(px,y):x.moveTo(px,y);on=true}x.stroke()});
 }
+const SN=n=>['あおば','みどり','さくら','ひので','つばき','かすみ','しらさぎ','ほたる','なぎさ','もみじ','ときわ','あかり'][n%12]+(n>=12?(n/12|0)+1:'')+'駅';
+function label(t){const cn=document.createElement('canvas');cn.width=256;cn.height=64;const q=cn.getContext('2d');
+  q.fillStyle='rgba(0,0,0,.65)';q.beginPath();q.roundRect?q.roundRect(4,8,248,48,12):q.rect(4,8,248,48);q.fill();
+  q.fillStyle='#fff';q.font='700 30px sans-serif';q.textAlign='center';q.textBaseline='middle';q.fillText(t,128,34);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cn),depthTest:false,transparent:true}));sp.scale.set(1.6,.4,1);sp.position.y=1;sp.renderOrder=5;return sp}
+const LAY=['','1面1線','2面2線','2面3線','2面4線'],LAYD=['','単線。行き違い・追い越し不可','行き違い可。追い越し不可','行き違い+待避可(各停の停車中に急行が通過)','行き違い+待避可。通過線あり(通過駅向き)'];
+const lane=(tr,p)=>{const c=grid[p[1]][p[0]];if(!c)return 0;if(c.t==='st'){const n=c.tr||(c.dbl?2:1),ps=tr.ex&&c.pass;return n===1?0:n===2?.19:n===3?(ps?0:.27):(ps?.1:.3)}return c.dbl?.19:0};
+const sr=p=>rad(grid[p[1]][p[0]]);
+const stStats=(c,x,y)=>{const r=rad(c);return `周辺 人口${near(x,y,pop,r)} / 雇用${near(x,y,job,r)}<br>乗降 ${Math.round(c.ride||0)}人 / 収入 ¥${Math.round(c.rev||0)}<br>乗換 ${Math.round(c.xf||0)}人<br>維持費 ¥${60+(c.g||0)*60+((c.tr||(c.dbl?2:1))-1)*20}/月`};
+function openSt(x,y){selSt=[x,y];dia.classList.remove('open');tep.classList.remove('open');cmp.classList.remove('open');stp.classList.add('open');renderSt()}
+function renderSt(){
+  if(!selSt){stp.classList.remove('open');return}
+  const[x,y]=selSt,c=grid[y][x];if(!c||c.t!=='st'){selSt=null;stp.classList.remove('open');return}
+  const g=c.g||0,n=c.tr||(c.dbl?2:1);
+  stp.innerHTML=`<div class="row"><input id="sn" maxlength="8"><button data-a="x">×</button></div><div class="row"><span>急行</span><button data-a="pass">${c.pass?'通過':'停車'}</button></div><div class="row"><span>配線</span><button data-a="tm">−</button><b>${LAY[n]}</b>${n<4?`<button data-a="tp">+¥${[0,150,250,300][n]}</button>`:''}</div><div class="row"><small>${LAYD[n]}${c.pass&&n<3?'<br>⚠通過駅は2面3線以上推奨':''}</small></div><div class="row"><span>駅規模</span><b>${['小','中','大'][g]} 半径${rad(c)}</b>${g<2?`<button data-a="up">拡張 ¥${[500,1000][g]}</button>`:''}</div><div class="row"><small>乗入: ${(c.ln||[]).join('・')||'なし'}${c.nl>1?' (乗換駅)':''}</small></div><div class="row"><small id="sst">${stStats(c,x,y)}</small></div><div class="row"><button data-a="del">この駅を廃止(線路に戻す)</button></div>`;
+  document.getElementById('sn').value=c.name;
+}
+stp.onclick=e=>{const a=e.target.dataset.a;if(!a||!selSt)return;const[x,y]=selSt,c=grid[y][x];
+  if(a==='x')selSt=null;
+  else if(a==='pass')c.pass=!c.pass;
+  else if(a==='tp'){const n=c.tr||(c.dbl?2:1);if(n<4){const cost=[0,150,250,300][n];if(money>=cost){money-=cost;c.tr=n+1;c.dbl=true}else warn('資金が足りません')}}
+  else if(a==='tm'){const n=c.tr||(c.dbl?2:1);if(n>1){c.tr=n-1;c.dbl=c.tr>=2}}
+  else if(a==='up'){const cost=[500,1000][c.g||0];if(money>=cost){money-=cost;c.g=(c.g||0)+1}else warn('資金が足りません')}
+  else if(a==='del'){grid[y][x]={t:'rail',lv:1,dbl:c.dbl};selSt=null;touch(x,y,true);renderSt();return}
+  build(x,y);refresh();renderSt()};
+stp.oninput=e=>{if(e.target.id==='sn'&&selSt){const c=grid[selSt[1]][selSt[0]];c.name=e.target.value.slice(0,8)||'無名駅';build(selSt[0],selSt[1])}};
+const decalMat=(()=>{const cache={};return(txt,col)=>{const k=txt+col;if(cache[k])return cache[k];const cn=document.createElement('canvas');cn.width=cn.height=64;const q=cn.getContext('2d');
+  q.fillStyle='#'+col.toString(16).padStart(6,'0');q.font='700 44px sans-serif';q.textAlign='center';q.textBaseline='middle';q.fillText(txt,32,36);
+  return cache[k]=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cn),transparent:true})}})();
+function mkCar(v,j,ex){
+  const n=v.list.length,t=v.list[j],c=new THREE.Group(),dd=v.shape==='dd';
+  c.add(bx(.3,.22,.56,v.col,0,.22,0));c.add(bx(.31,.07,.4,0xe6f2ff,0,.27,0));
+  if(dd){c.add(bx(.26,.12,.5,v.col,0,.39,0));c.add(bx(.27,.05,.4,0xe6f2ff,0,.4,0))}
+  if(v.shape==='arc'){const g=new THREE.CylinderGeometry(.15,.15,.56,10);g.rotateX(Math.PI/2);const m=new THREE.Mesh(g,M(v.col));m.scale.y=.35;m.position.y=.33;m.castShadow=true;c.add(m)}
+  if(v.shape==='bullet')for(const e of[j===0?1:0,j===n-1?-1:0])if(e){const g=new THREE.ConeGeometry(.21,.3,4);g.rotateY(Math.PI/4);g.rotateX(e*Math.PI/2);const m=new THREE.Mesh(g,M(v.col));m.scale.y=.75;m.position.set(0,.22,e*.43);m.castShadow=true;c.add(m)}
+  if(v.stripe==='band')c.add(bx(.31,.04,.56,v.acc,0,.17,0));
+  if(v.stripe==='two'){c.add(bx(.31,.022,.56,v.acc,0,.15,0));c.add(bx(.31,.022,.56,v.acc,0,.2,0))}
+  if(v.stripe==='wide')c.add(bx(.31,.08,.56,v.acc,0,.16,0));
+  if(t==='M')c.add(bx(.12,.05,.2,0x333333,0,dd?.48:.36,0));
+  if(t==='G')c.add(bx(.32,.03,.56,0x2a9d5c,0,.13,0));
+  if(ex)c.add(bx(.32,.03,.56,0xd9482b,0,.115,0));
+  if(v.logo&&(v.lpos==='all'||(v.lpos==='head'&&j===0)||(v.lpos==='mid'&&j===(n>>1))))for(const s of[-1,1]){const p=new THREE.Mesh(new THREE.PlaneGeometry(.17,.17),decalMat(v.logo,v.acc));p.position.set(s*.156,.2,0);p.rotation.y=s*Math.PI/2;c.add(p)}
+  return c}
+const hex6=c=>'#'+c.toString(16).padStart(6,'0');
+function drawPv(v){const c=document.getElementById('tpv');if(!c)return;const x=c.getContext('2d'),n=v.cars,w=Math.min(56,(c.width-30)/n),ac=hex6(v.acc);
+  x.clearRect(0,0,c.width,c.height);
+  v.list.forEach((t,i)=>{const px=18+i*w,top=v.shape==='dd'?6:14,wd=w-3;
+    x.fillStyle=hex6(v.col);x.fillRect(px,top,wd,48-top);
+    if(v.shape==='arc'){x.beginPath();x.ellipse(px+wd/2,top,wd/2,6,0,Math.PI,0);x.fill()}
+    if(v.shape==='bullet'){if(i===0){x.beginPath();x.moveTo(px,top);x.lineTo(px-12,48);x.lineTo(px,48);x.fill()}if(i===n-1){x.beginPath();x.moveTo(px+wd,top);x.lineTo(px+wd+12,48);x.lineTo(px+wd,48);x.fill()}}
+    x.fillStyle='#e6f2ff';x.fillRect(px+3,top+5,wd-6,9);if(v.shape==='dd')x.fillRect(px+3,top+19,wd-6,9);
+    x.fillStyle=ac;if(v.stripe==='band')x.fillRect(px,40,wd,4);if(v.stripe==='two'){x.fillRect(px,37,wd,2);x.fillRect(px,42,wd,2)}if(v.stripe==='wide')x.fillRect(px,36,wd,8);
+    if(t==='G'){x.fillStyle='#2a9d5c';x.fillRect(px,45,wd,3)}
+    if(t==='M'){x.fillStyle='#333';x.fillRect(px+wd/2-6,top-5,12,5)}
+    if(v.logo&&(v.lpos==='all'||(v.lpos==='head'&&i===0)||(v.lpos==='mid'&&i===(n>>1)))){x.fillStyle=ac;x.font='700 14px sans-serif';x.textAlign='center';x.fillText(v.logo,px+wd/2,top+30)}
+    x.fillStyle='#222';x.beginPath();x.arc(px+8,51,4,0,7);x.arc(px+wd-8,51,4,0,7);x.fill()})}
+const stTxt=v=>`速度 ${v.spd} / 定員 ${v.cap} / 維持費 ¥${v.up}/月<br>運賃×${v.fm.toFixed(2)}(客数×${Math.pow(v.perf.fr,-1.3).toFixed(2)})${v.spd<1?'<br>⚠動力車が必要です':''}${v.cars>3?'<br>停車時間 +'+((v.cars-3)*.4).toFixed(1)+'秒':''}`;
+function renderTe(){
+  const V=vehs();if(selVeh>=V.length)selVeh=0;const v=V[selVeh],cu=selVeh>=VEH.length,ln=cur();
+  const pal=(a,cv)=>PAL.map((c,i)=>`<button data-a="${a}" data-i="${i}" aria-label="色${i+1}" style="background:${hex6(c)};width:30px;height:30px;padding:0${cv===c?';border-color:var(--ink)':''}"></button>`).join('');
+  const seg=(a,o,cv)=>Object.entries(o).map(([k,t])=>`<button data-a="${a}" data-i="${k}" class="${cv===k?'on':''}">${t}</button>`).join('');
+  const R=(h)=>`<div class="row" style="flex-wrap:wrap">${h}</div>`,L=t=>`<div class="row"><small>${t}</small></div>`;
+  tep.innerHTML=`<div id="tt">${V.map((q,i)=>`<button data-i="${i}" class="${i===selVeh?'on':''}">${q.n}</button>`).join('')}<button data-a="new">＋新規</button></div><canvas id="tpv" width="320" height="64"></canvas>`+
+  (cu?`<div class="row"><input id="vn" maxlength="8"><button data-a="del">削除</button></div>${L('形状テンプレート')}${R(seg('sh',{box:'角形',bullet:'流線形',dd:'二階建て',arc:'丸屋根'},v.shape))}${L(SH[v.shape].n+': 速度×'+SH[v.shape].sp+' 定員×'+SH[v.shape].cp+' 維持費×'+SH[v.shape].up)}${L('編成(タップで種類変更)')}${R(v.list.map((t,i)=>`<button data-a="ct" data-i="${i}">${i+1}.${CT[t].n}</button>`).join(''))}<div class="row"><button data-a="car-">−両</button><b>${v.cars}両</b><button data-a="car+">＋両</button></div>${L('車体色')}${R(pal('pc',v.col))}${L('帯・ロゴ色')}${R(pal('pa',v.acc))}${L('帯')}${R(seg('st',{none:'なし',band:'帯',two:'二本線',wide:'太帯'},v.stripe))}<div class="row"><small>ロゴ</small><input id="lg" maxlength="2" placeholder="1〜2文字" style="width:80px;font:inherit;padding:6px;border-radius:8px;border:2px solid #0003;background:#0002;color:var(--ink)">${['★','●','▲','◆','♥'].map(g=>`<button data-a="lg" data-i="${g}">${g}</button>`).join('')}</div>${R(seg('lp',{head:'先頭車',mid:'中央',all:'全車'},v.lpos))}${L('性能エディット')}${[['sp','速度',70,140],['cp','定員',70,140],['fr','運賃',80,150]].map(([k,l,a,b])=>`<div class="row"><span>${l}</span><input type="range" min="${a}" max="${b}" value="${Math.round(v.perf[k]*100)}" data-p="${k}" aria-label="${l}"><b id="pv_${k}">${Math.round(v.perf[k]*100)}%</b></div>`).join('')}`
+  :`${L('形状: '+SH[v.shape].n)}<div class="row"><button data-a="copy">コピーして自作する</button></div>`)+
+  `<div class="row"><small id="tst">${stTxt(v)}</small></div><div class="row"><button data-a="apply">${ln?ln.name+'に適用':'適用する路線なし'}</button></div>`;
+  if(cu){document.getElementById('vn').value=v.n;document.getElementById('lg').value=v.logo}
+  drawPv(v);
+}
+function updSt(){const q=custom[selVeh-VEH.length];if(!q)return;document.getElementById('tst').innerHTML=stTxt(q);for(const k of['sp','cp','fr'])document.getElementById('pv_'+k).textContent=Math.round(q.perf[k]*100)+'%';drawPv(q)}
+tep.onclick=e=>{const d=e.target.dataset;if(d.i!==undefined&&!d.a){selVeh=+d.i;renderTe();return}
+  const a=d.a;if(!a)return;const cu=selVeh>=VEH.length,ci=selVeh-VEH.length,o=custom[ci];let ch=false;
+  const upd=f=>{f(o);custom[ci]=mk(o.n,o.list,o.col,o);ch=true};
+  if(a==='new'||a==='copy'){const src=a==='copy'?vehs()[selVeh]:{n:'自作'+(custom.length+1),list:['M','T','T'],col:PAL[custom.length%8],stripe:'band'};custom.push(mk(a==='copy'?src.n.slice(0,6)+'改':src.n,[...src.list],src.col,src));selVeh=VEH.length+custom.length-1}
+  else if(a==='del'&&cu){custom.splice(ci,1);selVeh=0;ch=true}
+  else if(a==='ct'&&cu)upd(q=>{q.list[+d.i]=({M:'T',T:'G',G:'M'})[q.list[+d.i]]});
+  else if(a==='car+'&&cu)upd(q=>{if(q.list.length<8)q.list.push('T')});
+  else if(a==='car-'&&cu)upd(q=>{if(q.list.length>2)q.list.pop()});
+  else if(a==='pc'&&cu)upd(q=>{q.col=PAL[+d.i]});
+  else if(a==='pa'&&cu)upd(q=>{q.acc=PAL[+d.i]});
+  else if(a==='sh'&&cu)upd(q=>{q.shape=d.i});
+  else if(a==='st'&&cu)upd(q=>{q.stripe=d.i});
+  else if(a==='lg'&&cu)upd(q=>{q.logo=d.i});
+  else if(a==='lp'&&cu)upd(q=>{q.lpos=d.i});
+  else if(a==='apply'){const c=cur();if(c){c.cfg.veh=selVeh;ch=true}}
+  if(ch)rebuild();renderTe()};
+tep.oninput=e=>{const ci=selVeh-VEH.length,q=custom[ci],t=e.target;if(!q)return;
+  if(t.id==='vn')q.n=t.value.slice(0,8)||'自作';else if(t.id==='lg')q.logo=t.value.slice(0,2);else if(t.dataset.p)q.perf[t.dataset.p]=+t.value/100;else return;
+  custom[ci]=mk(q.n,q.list,q.col,q);updSt()};
+tep.onchange=e=>{if(selVeh>=VEH.length&&(e.target.id==='lg'||e.target.id==='vn'||e.target.dataset.p))rebuild()};
+const snd={on:true},annSeen=new Set();let AC=null;
+function chime(kind){if(!snd.on)return;try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
+  const t0=AC.currentTime,seq=kind==='door'?[[880,0,.18],[698,.2,.28]]:[[784,0,.3],[659,.32,.3],[523,.64,.5]];
+  for(const[f,d,l]of seq){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0,t0+d);g.gain.linearRampToValueAtTime(.18,t0+d+.02);g.gain.exponentialRampToValueAtTime(.001,t0+d+l);o.connect(g);g.connect(AC.destination);o.start(t0+d);o.stop(t0+d+l+.05)}}catch(e){}}
+function announce(txt,kind){const el=document.getElementById('cabc');if(el)el.textContent=txt;chime(kind);
+  if(snd.on&&window.speechSynthesis){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='ja-JP';u.rate=.95;setTimeout(()=>speechSynthesis.speak(u),kind==='door'?300:1000)}catch(e){}}}
+function nextStop(t){const L=t.path.length-1,i=Math.round(t.pos);for(let j=i+t.dir;j>=0&&j<=L;j+=t.dir){const c=grid[t.path[j][1]][t.path[j][0]];if(j===0||j===L||(c?.t==='st'&&!(t.ex&&c.pass)))return j}return null}
+function annOnce(t,ph,txt,kind){const k=t.line.name+t.idx+'|'+(t.arr||0)+'|'+ph;if(annSeen.has(k))return;annSeen.add(k);announce(txt,kind)}
+function annTick(t){
+  const L=t.path.length-1,i=Math.round(t.pos),c=grid[t.path[i][1]][t.path[i][0]],ty=t.ex?'急行':'各停',N=j=>nm(t.path[j]+'');
+  if(t.stop>0&&c?.t==='st'){
+    const term=i===0||i===L;
+    if(term)annOnce(t,'arr','終点、'+N(i)+'です。ご乗車ありがとうございました。','info');
+    else annOnce(t,'arr',N(i)+'、'+N(i)+'です。','info');
+    const ot=(c.ln||[]).filter(n=>n!==t.line.name);if(ot.length)annOnce(t,'xf',ot.join('、')+'はお乗り換えです。','info');
+    if(!term&&t.stop<=1.2)annOnce(t,'door','ドアが閉まります。ご注意ください。','door');
+    return}
+  const nx=nextStop(t);if(nx===null)return;
+  const dest=nm((t.dir>0?t.path[L]:t.path[0])+''),fromTerm=t.last===0||t.last===L;
+  annOnce(t,'next',(fromTerm?`この電車は${ty}、${dest}ゆきです。`:'')+'次は、'+N(nx)+'です。','info');
+  for(let j=i+t.dir;j!==nx&&j>=0&&j<=L;j+=t.dir){const q=grid[t.path[j][1]][t.path[j][0]];if(q?.t==='st'&&t.ex&&q.pass&&Math.abs(j-t.pos)<=1.6)annOnce(t,'p'+j,N(j)+'を通過します。ご注意ください。','info')}
+  if(Math.abs(nx-t.pos)<=2.2)annOnce(t,'soon','まもなく、'+N(nx)+'です。','info');
+}
+const cst={x:0,y:0,z:0,a:0,snap:true};let camSave=null;
+const camTr=()=>camKey&&trains.find(t=>t.line.name===camKey[0]&&t.idx===camKey[1]);
+function pose(tr,i){const L=tr.path.length-1,p=Math.max(0,Math.min(L,tr.pos-tr.dir*i*.62)),i0=Math.max(0,Math.min(L-1,Math.floor(p))),f=p-i0,a=tr.path[i0],b=tr.path[i0+1]||a;
+  const[wx,wz]=W3(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f),ya=grid[a[1]][a[0]]?.t==='br'?.3:0,yb=grid[b[1]][b[0]]?.t==='br'?.3:0,hx=(b[0]-a[0])*tr.dir,hz=(b[1]-a[1])*tr.dir,lt=lane(tr,a)+(lane(tr,b)-lane(tr,a))*f;
+  return{x:wx+lt*hz,y:ya+(yb-ya)*f,z:wz-lt*hx,r:Math.atan2(hx,hz)}}
+function camCalc(t,dt){const q=pose(t,0),fr=camMode==='front',k=cst.snap||fr?1:Math.min(1,dt*10);cst.snap=false;
+  cst.x+=(q.x-cst.x)*k;cst.y+=(q.y-cst.y)*k;cst.z+=(q.z-cst.z)*k;
+  let d=q.r-cst.a;d=Math.atan2(Math.sin(d),Math.cos(d));cst.a+=d*Math.min(1,dt*(fr?8:3));
+  const sn=Math.sin(cst.a),cs=Math.cos(cst.a);
+  if(fr)return[cst.x+sn*.35,cst.y+.38,cst.z+cs*.35,cst.x+sn*6,cst.y+.33,cst.z+cs*6];
+  const ay=cst.a+Math.PI+yaw,cp=Math.cos(pitch);
+  return[cst.x+Math.sin(ay)*cp*dist,cst.y+Math.sin(pitch)*dist,cst.z+Math.cos(ay)*cp*dist,cst.x,cst.y+.2,cst.z]}
+function setCam(tr,m){
+  if(tr)camKey=[tr.line.name,tr.idx];
+  if(m!=='free'&&!camTr())m='free';
+  if(camMode==='free'&&m!=='free')camSave={yaw,pitch,dist};
+  if(m==='free'&&camMode!=='free'&&camSave)({yaw,pitch,dist}=camSave);
+  if(m==='chase'&&camMode!=='chase'){yaw=0;pitch=.5;dist=5}
+  camMode=m;const t=camTr();
+  if(t&&t.on){const q=pose(t,0);Object.assign(cst,{x:q.x,y:q.y,z:q.z,a:q.r})}
+  cst.snap=!(t&&t.on);
+  cam.fov=m==='front'?62:45;cam.near=m==='front'?.05:.1;cam.updateProjectionMatrix();
+  document.getElementById('cab').style.display=m==='free'?'none':'block';cmp.classList.remove('open');
+  if(m!=='free')updCab(t);
+  for(const row of objs)for(const o of row)if(o&&o.userData.lb)o.userData.lb.visible=m!=='front';
+}
+function updCab(t){if(!t)return;const el=document.getElementById('cabi'),L=t.path.length-1,nmv=`${t.line.name} ${t.ex?'急行':'各停'}#${t.idx+1}`;
+  document.getElementById('cabm').textContent=camMode==='front'?'追跡視点へ':'前面展望へ';
+  if(!t.on){el.innerHTML=`<b>${nmv}</b> 車庫で待機中`;document.getElementById('cabs').textContent='';return}
+  const i=Math.round(t.pos),nx=nextStop(t),ahead=[];
+  for(let j=i+t.dir;j>=0&&j<=L&&ahead.length<4;j+=t.dir){const c=grid[t.path[j][1]][t.path[j][0]];if(j===0||j===L||(c?.t==='st'&&!(t.ex&&c.pass)))ahead.push(nm(t.path[j]+'')+(c?.nl>1?'⇄':''))}
+  document.getElementById('cabs').textContent=ahead.length?'次 ▶ '+ahead.join(' → '):'';
+  const st=t.stop>0?`停車中 あと${Math.ceil(t.stop)}秒`:t.blk>.5?'前方支障のため停止':(t.cv||0)<.1?'発車待ち':'走行中';
+  el.innerHTML=`<b>${nmv}</b> ${st}<br><span style="font-size:26px;font-weight:700;font-style:italic">${t.stop>0?0:Math.round((t.cv||0)*40)}</span> km/h<br>次は ${nx!==null?nm(t.path[nx]+'')+'(あと'+Math.abs(nx-t.pos).toFixed(1)+'マス)':'-'}`}
+function renderCm(){cmp.innerHTML=trains.length?`<div class="row"><small>追跡する列車を選びます。「視点」ツールで地図の列車をタップしても選べます。</small></div><div id="tt">${trains.map((t,i)=>`<button data-t="${i}">${t.line.name} ${t.ex?'急行':'各停'}#${t.idx+1}${t.on?'':'(待機)'}</button>`).join('')}</div>`:'<div class="row"><small>走っている列車がありません。駅を2つ以上つないで路線を作ってください。</small></div>'}
+cmp.onclick=e=>{const i=e.target.dataset.t;if(i!==undefined)setCam(trains[+i],'chase')};
+document.getElementById('cab').onclick=e=>{const c=e.target.dataset.c;if(!c)return;const t=camTr();
+  if(c==='x')setCam(null,'free');
+  else if(c==='snd'){snd.on=!snd.on;document.getElementById('cabsnd').textContent=snd.on?'放送音:オン':'放送音:オフ';if(!snd.on&&window.speechSynthesis)speechSynthesis.cancel()}
+  else if(c==='mode')setCam(t,camMode==='front'?'chase':'front');
+  else if(t){const n=trains.length,i=trains.indexOf(t);setCam(trains[(i+(c==='next'?1:n-1))%n],camMode)}};
+function pickTrain(e){mv.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv,cam);
+  const hit=ray.intersectObjects(trains.filter(t=>t.on).map(t=>t.g),true)[0];if(!hit)return;
+  let o=hit.object;while(o&&!trains.some(t=>t.g===o))o=o.parent;const t=trains.find(t=>t.g===o);if(t)setCam(t,'chase')}
 // --- actions
 function touch(x,y,r){build(x,y);if(r){for(const[dx,dy]of D)if(inb(x+dx,y+dy))build(x+dx,y+dy);rebuild()}refresh()}
 function act(x,y){
   if(!inb(x,y)||tool==='view')return;const c=grid[y][x],w=water[y][x];
   if(tool==='del'){if(c){const r=c.t==='rail'||c.t==='st'||c.t==='br';grid[y][x]=null;touch(x,y,r)}else if(w){water[y][x]=false;refresh()}return}
+  if(tool==='route'){
+    const r=routes[selLine];if(!r){warn('先に「ダイヤ」で「路線を自分で設定する」を押してください');return}
+    if(!c||c.t!=='st')return;
+    const k=x+','+y,i=r.stops.indexOf(k);if(i>=0)r.stops.splice(i,1);else r.stops.push(k);
+    if(r.stops.length>=2&&!routePath(r)){if(i>=0)r.stops.splice(i,0,k);else r.stops.pop();warn('その順番では経路を作れません(つながっていない/同じ線路を折返す)');return}
+    say(r.name+': '+r.stops.map(nm).join(' → '));rebuild();return}
+  if(tool==='edit'){if(c&&c.t==='st')openSt(x,y);return}
   if(tool==='pass'){if(c&&c.t==='st'){c.pass=!c.pass;build(x,y);say(c.pass?'この駅は急行が通過します':'この駅は急行も停車します')}return}
-  if(tool==='dbl'){if(c&&['rail','st','br'].includes(c.t)&&!c.dbl&&money>=80){c.dbl=true;money-=80;touch(x,y,false)}return}
+  if(tool==='dbl'){if(c&&['rail','st','br'].includes(c.t)&&!c.dbl&&money>=80){c.dbl=true;if(c.t==='st')c.tr=2;money-=80;touch(x,y,false)}return}
+  if(tool==='st'&&c&&c.t==='rail'&&money>=T.st.c){money-=T.st.c;grid[y][x]={t:'st',lv:1,dbl:c.dbl,tr:c.dbl?2:1};touch(x,y,true);return}
   if(c||money<T[tool].c)return;
   if(tool==='river'){if(w)return;water[y][x]=true;money-=T[tool].c;refresh();return}
   if(tool==='br'){if(!w){warn('橋は水の上にだけ架けられます');return}}
@@ -192,54 +434,64 @@ function act(x,y){
   money-=T[tool].c;put(x,y,tool);touch(x,y,tool==='rail'||tool==='st'||tool==='br');
 }
 // --- input
-const bar=document.getElementById('bar'),dia=document.getElementById('dia');
-for(const k in T){const b=document.createElement('button');b.dataset.k=k;b.innerHTML=T[k].n+'<small>'+(T[k].c?'¥'+T[k].c:k==='view'?'ドラッグで回転':k==='dia'?'運行図表':k==='pass'?'駅を切替':'')+'</small>';b.onclick=()=>{if(k==='dia'){dia.classList.toggle('open');renderCtl();return}tool=k;sync()};bar.appendChild(b)}
+const bar=document.getElementById('bar');
+for(const k in T){const b=document.createElement('button');b.dataset.k=k;b.innerHTML=T[k].n+'<small>'+(T[k].c?'¥'+T[k].c:k==='view'?'ドラッグで回転':k==='dia'?'運行図表':k==='pass'?'駅を切替':k==='edit'?'駅をタップ':k==='route'?'経由駅を指定':k==='tedit'?'列車を作る':k==='cam'?'追跡・前面展望':'')+'</small>';b.onclick=()=>{if(k==='cam'){cmp.classList.toggle('open');dia.classList.remove('open');tep.classList.remove('open');stp.classList.remove('open');selSt=null;renderCm();return}
+  if(k==='tedit'){cmp.classList.remove('open');tep.classList.toggle('open');dia.classList.remove('open');stp.classList.remove('open');selSt=null;renderTe();return}
+  if(k==='dia'){dia.classList.toggle('open');tep.classList.remove('open');cmp.classList.remove('open');selSt=null;stp.classList.remove('open');renderCtl();return}tool=k;if(k!=='edit'){selSt=null;stp.classList.remove('open')}sync()};bar.appendChild(b)}
 function sync(){[...bar.children].forEach(b=>b.classList.toggle('on',b.dataset.k===tool))}sync();
 let yaw=.6,pitch=.9,dist=24;const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const ray=new THREE.Raycaster(),pl=new THREE.Plane(new THREE.Vector3(0,1,0),0),mv=new THREE.Vector2(),pt=new THREE.Vector3();
 function tileAt(e){mv.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv,cam);
   if(!ray.ray.intersectPlane(pl,pt))return[-1,-1];return[Math.floor(pt.x+GW/2),Math.floor(pt.z+GH/2)]}
-const ptrs=new Map();let mode=null,pd=0;
+const ptrs=new Map();let mode=null,pd=0,tapMv=0;
 const pinch=()=>{const a=[...ptrs.values()];return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)||1};
 cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(ptrs.size>1){mode='pinch';pd=pinch();return}
+  tapMv=0;if(camMode==='front'){mode=null;return}
   mode=(tool==='view'||e.button===2)?'orbit':'paint';if(mode==='paint')act(...tileAt(e))});
 cv.addEventListener('pointermove',e=>{
   hover=tileAt(e);const p=ptrs.get(e.pointerId);if(!p)return;
   const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
-  if(mode==='orbit'){yaw-=dx*.006;pitch=clamp(pitch+dy*.005,.25,1.4)}
-  else if(mode==='pinch'&&ptrs.size>1){const d=pinch();dist=clamp(dist*pd/d,8,45);pd=d}
+  if(mode==='orbit'){tapMv+=Math.abs(dx)+Math.abs(dy);yaw-=dx*.006;pitch=clamp(pitch+dy*.005,.25,1.4)}
+  else if(mode==='pinch'&&ptrs.size>1){const d=pinch();dist=clamp(dist*pd/d,3,45);pd=d}
   else if(mode==='paint'&&(tool==='rail'||tool==='del'||tool==='dbl'))act(...hover)});
-const up=e=>{ptrs.delete(e.pointerId);mode=ptrs.size?'pinch':null};
+const up=e=>{const was=mode;ptrs.delete(e.pointerId);mode=ptrs.size?'pinch':null;if(was==='orbit'&&tool==='view'&&tapMv<6&&e.type==='pointerup')pickTrain(e)};
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
-cv.addEventListener('wheel',e=>{dist=clamp(dist*(1+e.deltaY*.001),8,45)},{passive:true});
+cv.addEventListener('wheel',e=>{dist=clamp(dist*(1+e.deltaY*.001),3,45)},{passive:true});
 function rs(){R.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}addEventListener('resize',rs);rs();
 // --- simulation
 function tick(){
-  day++;let ch=false;
+  day++;let ch=false;if(selSt){const e=document.getElementById('sst'),z=grid[selSt[1]][selSt[0]];if(e&&z)e.innerHTML=stStats(z,selSt[0],selSt[1])}
   for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const c=grid[y][x];
     if(c&&['h','o','f'].includes(c.t)&&c.lv<4&&covered(x,y)&&Math.random()<(nearW(x,y)?.045:.03)){c.lv++;build(x,y);ch=true}}
   if(ch)refresh();
-  if(day%30===0){let tp=0,rails=0,sts=0,brs=0,dbls=0;grid.forEach(r=>r.forEach(c=>{if(!c)return;tp+=pop(c);if(c.t==='rail')rails++;if(c.t==='st')sts++;if(c.t==='br')brs++;if(c.dbl)dbls++}));
-    const tax=tp*4,cost=rails*8+sts*60+brs*30+dbls*10+trains.reduce((a,t)=>a+t.up,0);money+=tax-cost;say(day/30+'か月目:税収 ¥'+tax+' / 維持費 ¥'+cost)}
+  if(day%30===0){let tp=0,rails=0,sts=0,brs=0,dbls=0,gs=0,ts=0;grid.forEach(r=>r.forEach(c=>{if(!c)return;tp+=pop(c);if(c.t==='rail')rails++;if(c.t==='st'){sts++;gs+=c.g||0;ts+=(c.tr||(c.dbl?2:1))-1}if(c.t==='br')brs++;if(c.dbl)dbls++}));
+    const tax=tp*4,cost=rails*8+sts*60+gs*60+ts*20+brs*30+dbls*10+trains.reduce((a,t)=>a+t.up,0);money+=tax-cost;say(day/30+'か月目:税収 ¥'+tax+' / 維持費 ¥'+cost)}
 }
-let last=0,acc=0,tm=0;
+let last=0,acc=0,tm=0,cabT=0;
 function loop(t){
   const dt=Math.min((t-last)/1000,.1);last=t;acc+=dt;while(acc>.5){acc-=.5;tick()}
   tm+=dt;
   for(const tr of trains){
     if(!tr.on){tr.wait-=dt;if(tr.wait>0)continue;
-      if(regBlock(tr,-1,0)||blocker(tr,0)){if(!tr.told){tr.told=1;say(tr.line.name+':単線のため発車待ち(折返し駅を複線に)')}continue}
+      tr.dir=1;if(regBlock(tr,-1,0)||blocker(tr,0,0)){if(!tr.told){tr.told=1;say(tr.line.name+':単線のため発車待ち(折返し駅を複線に)')}continue}
       tr.told=0;tr.on=true;tr.g.visible=true;tr.pos=0;tr.dir=1;tr.last=0;tr.stop=0}
-    if(tr.stop>0)tr.stop-=dt;else step(tr,dt);
+    const p0=tr.pos;if(tr.stop>0)tr.stop-=dt;else step(tr,dt);tr.cv=(tr.cv||0)*.85+Math.abs(tr.pos-p0)/Math.max(dt,.001)*.15;
     placeTrain(tr);
     if(tm-tr.ls>.3){tr.ls=tm;tr.h.push([tm,tr.pos/(tr.path.length-1)]);if(tr.h.length>400)tr.h.shift()}
   }
-  if(dia.classList.contains('open'))drawDia();
-  cam.position.set(Math.sin(yaw)*Math.cos(pitch)*dist,Math.sin(pitch)*dist,Math.cos(yaw)*Math.cos(pitch)*dist);cam.lookAt(0,0,0);
-  const[hx,hy]=hover,ok=inb(hx,hy);hb.visible=ok&&tool!=='view';cb.visible=hb.visible&&tool==='st';
-  if(ok){const[wx,wz]=W3(hx,hy);hb.position.x=cb.position.x=wx;hb.position.z=cb.position.z=wz}
+  if(dia.classList.contains('open'))drawDia();else rline.visible=false;
+  const ctr=camMode!=='free'?camTr():null;
+  if(camMode!=='free'&&!ctr)setCam(null,'free');
+  if(ctr&&ctr.on){const[a,b,c,d,e,f]=camCalc(ctr,dt);cam.position.set(a,b,c);cam.lookAt(d,e,f)}
+  else if(camMode==='free'){cam.position.set(Math.sin(yaw)*Math.cos(pitch)*dist,Math.sin(pitch)*dist,Math.cos(yaw)*Math.cos(pitch)*dist);cam.lookAt(0,0,0)}
+  for(const t of trains){const c0=t.g.children[0];if(c0)c0.visible=!(camMode==='front'&&t===ctr)}
+  if(ctr&&ctr.on)annTick(ctr);
+  if(camMode!=='free'&&tm-cabT>.15){cabT=tm;updCab(ctr)}
+  const[hx,hy]=hover,ok=inb(hx,hy);hb.visible=ok&&tool!=='view'&&camMode!=='front';cb.visible=false;
+  if(ok){const[wx,wz]=W3(hx,hy);hb.position.x=wx;hb.position.z=wz;if(tool==='st'){cb.position.x=wx;cb.position.z=wz;cb.scale.set(1,1,1);cb.visible=true}}
+  if(selSt){const[wx,wz]=W3(selSt[0],selSt[1]),k=(2*rad(grid[selSt[1]][selSt[0]])+1)/7;cb.position.x=wx;cb.position.z=wz;cb.scale.set(k,1,k);cb.visible=true}
   let tp=0,tj=0;grid.forEach(r=>r.forEach(c=>{if(c){tp+=pop(c);tj+=job(c)}}));
   document.getElementById('m').textContent='資金 ¥'+Math.floor(money).toLocaleString();
   document.getElementById('p').textContent='人口 '+tp+' / 雇用 '+tj;
@@ -248,7 +500,7 @@ function loop(t){
   R.render(S,cam);requestAnimationFrame(loop);
 }
 [[5,4,'h'],[6,4,'h'],[5,6,'h'],[19,10,'o'],[20,10,'o'],[18,12,'f'],[7,10,'h']].forEach(a=>{put(...a);build(a[0],a[1])});
-say('「通過」で駅を切替。複線の駅なら急行が各停を追い越せます');
+say('線路を分岐させ、分岐点を駅にすると乗換駅になります');
 refresh();requestAnimationFrame(loop);
 </script>
 </body>
